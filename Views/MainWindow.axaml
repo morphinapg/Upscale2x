@@ -1,0 +1,116 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Upscale2x.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1024" d:DesignHeight="768"
+        Width="1024" Height="768"
+        x:Class="Upscale2x.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="Upscale2x"
+        WindowStartupLocation="CenterOwner">
+
+    <Design.DataContext>
+        <!-- This only sets the DataContext for the previewer in an IDE,
+             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+        <vm:MainViewModel/>
+    </Design.DataContext>
+
+  <Window.DataContext>
+    <vm:MainViewModel/>
+  </Window.DataContext>
+  
+  <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="*,*" x:Name="MainGrid">
+    <Grid.Styles>
+      <Style Selector="Button">
+        <Setter Property="Margin" Value="10"/>
+        <Setter Property="Padding" Value="10"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+      </Style>
+      
+      <Style Selector="Border">
+        <Setter Property="Margin" Value="10"/>
+        <Setter Property="BorderBrush" Value="Gray"/>
+        <Setter Property="BorderThickness" Value="1"/>
+      </Style>
+
+      <Style Selector="Image">
+        <Setter Property="Stretch" Value="Uniform"/>
+      </Style>
+    </Grid.Styles>
+    
+    <Button Content="📂 Open" Command="{Binding Load_Image}"/>
+
+    <Grid HorizontalAlignment="Center" VerticalAlignment="Center" IsEnabled="{Binding IsNotTraining}" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,Auto">
+        <Grid.Styles>
+            <Style Selector="RadioButton">
+                <Setter Property="Margin" Value="-5,-10"/> 
+            </Style>
+            <Style Selector="TextBlock">
+				<Setter Property="Margin" Value="5"/>
+            </Style>
+            <Style Selector="Button">
+                <Setter Property="Padding" Value="10,5"/>
+            </Style>
+        </Grid.Styles>
+
+        <RadioButton Grid.Row="1" Content="Base Model" GroupName="ModelMode" IsChecked="{Binding BaseMode}" ToolTip.Tip="The base model is trained first, learns the core upscaling function." />
+        <RadioButton Grid.Row="2" Content="Refine Model" GroupName="ModelMode" IsChecked="{Binding RefineMode}" ToolTip.Tip="The refine model is trained second, learns to improve fine detail."/>
+
+        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding BaseImprovement, StringFormat=P2}"/>
+        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding RefineImprovement, StringFormat=P2}"/>
+
+        <Button Grid.Row="1" Grid.Column="2" Content="Reset" IsVisible="{Binding BaseModelEnabled}"/>
+        <Button Grid.Row="2" Grid.Column="2" Content="Reset" IsVisible="{Binding RefineModelEnabled}"/>
+    </Grid>
+
+
+    <CheckBox Content="Analyze Render" 
+              ToolTip.Tip="This allows you to see the difference in pixel values compared to the original to determine added detail" 
+              Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" IsChecked="{Binding AnalyzeRender}"/>
+    <Button Content="💾 Save" Grid.Column="1" HorizontalAlignment="Right" Command="{Binding Save_Click}"/>
+    <Border Grid.Row="1">
+      <Image Source="{Binding InputImageBitmap}"/>
+    </Border>
+    <Border Grid.Row="1" Grid.Column="1">
+      <Image Source="{Binding OutputImage}"/>
+    </Border>
+
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*" RowDefinitions="*,*,*" Margin="5,0,5,0">
+      <Grid.Styles>
+        <Style Selector="Button">
+          <Setter Property="VerticalAlignment" Value="Stretch"/>
+          <Setter Property="Margin" Value="5,2.5"/>
+          <Setter Property="HorizontalAlignment" Value="Stretch"/>
+          <Setter Property="HorizontalContentAlignment" Value="Center"/>
+          <Setter Property="Padding" Value="5"/>
+          <Setter Property="FontWeight" Value="Normal"/>
+        </Style>
+      </Grid.Styles>
+      
+      <Border Grid.Column="1" Grid.RowSpan="3" Background="#33808080" Margin="5">
+        <TextBlock TextWrapping="Wrap" Text="{Binding TrainingStatus}" Padding="5"/>
+      </Border>
+      <Button Content="Load Model" Margin="5,5,5,2.5" Command="{Binding LoadModel_Click}"/>
+      <Button Content="Save Model" Grid.Row="1"  IsEnabled="{Binding ModelEnabled}" Command="{Binding SaveModel_Click}" />
+      <Button Content="Reset Model" Grid.Row="2" IsEnabled="{Binding ModelEnabled}" Command="{Binding Reset_Model}" Margin="5,2.5,5,5"/>
+    </Grid>
+
+    <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,*" Margin="5,0,5,0">
+      <Grid.Styles>
+        <Style Selector="Button">
+          <Setter Property="HorizontalAlignment" Value="Stretch"/>
+          <Setter Property="HorizontalContentAlignment" Value="Center"/>
+          <Setter Property="VerticalContentAlignment" Value="Center"/>
+          <Setter Property="FontSize" Value="24"/>
+          <Setter Property="MinHeight" Value="75"/>
+          <Setter Property="VerticalAlignment" Value="Stretch"/>
+          <Setter Property="Margin" Value="5"/>
+        </Style>
+      </Grid.Styles>
+      <Button Content="{Binding TrainingMessage}" IsEnabled="{Binding ReadyToTrain}" Command="{Binding StartStop_Training}"/>
+      <Button Grid.Column="1" Content="Render Image" Command="{Binding Upscale_Click}" IsEnabled="{Binding ModelEnabled}"/>
+    </Grid>
+  </Grid>
+</Window>
