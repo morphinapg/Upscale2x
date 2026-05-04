@@ -1052,7 +1052,7 @@ namespace Upscale2x.ViewModels
     }
 
     [DataContract]
-    public struct ModelBundle
+    public class ModelBundle
     {
         [DataMember]
         public Evolution? BaseModel, RefineModel;

@@ -199,7 +199,7 @@ namespace Upscale2x.ViewModels
 
             //Now, sample and normalize input pixels
 
-            InputPixelData InputPixels = default;
+            
 
             //Reformat pixels to be relative to Pixel13
             float4 
@@ -229,31 +229,7 @@ namespace Upscale2x.ViewModels
                 Pixel24 = ImageToUpscale[X4, Y5],
                 Pixel25 = ImageToUpscale[X5, Y5];
 
-                InputPixels.Pixel1 = ((Pixel1 - ReferencePixel) - InputAverages[Z, 0]) / InputDeviations[Z, 0];
-                InputPixels.Pixel2 = ((Pixel2 - ReferencePixel) - InputAverages[Z, 1]) / InputDeviations[Z, 1];
-                InputPixels.Pixel3 = ((Pixel3 - ReferencePixel) - InputAverages[Z, 2]) / InputDeviations[Z, 2];
-                InputPixels.Pixel4 = ((Pixel4 - ReferencePixel) - InputAverages[Z, 3]) / InputDeviations[Z, 3];
-                InputPixels.Pixel5 = ((Pixel5 - ReferencePixel) - InputAverages[Z, 4]) / InputDeviations[Z, 4];
-                InputPixels.Pixel6 = ((Pixel6 - ReferencePixel) - InputAverages[Z, 5]) / InputDeviations[Z, 5];
-                InputPixels.Pixel7 = ((Pixel7 - ReferencePixel) - InputAverages[Z, 6]) / InputDeviations[Z, 6];
-                InputPixels.Pixel8 = ((Pixel8 - ReferencePixel) - InputAverages[Z, 7]) / InputDeviations[Z, 7];
-                InputPixels.Pixel9 = ((Pixel9 - ReferencePixel) - InputAverages[Z, 8]) / InputDeviations[Z, 8];
-                InputPixels.Pixel10 = ((Pixel10 - ReferencePixel) - InputAverages[Z, 9]) / InputDeviations[Z, 9];
-                InputPixels.Pixel11 = ((Pixel11 - ReferencePixel) - InputAverages[Z, 10]) / InputDeviations[Z, 10];
-                InputPixels.Pixel12 = ((Pixel12 - ReferencePixel) - InputAverages[Z, 11]) / InputDeviations[Z, 11];
-                InputPixels.Pixel13 = (0f - InputAverages[Z, 12]) / InputDeviations[Z, 12];
-                InputPixels.Pixel14 = ((Pixel14 - ReferencePixel) - InputAverages[Z, 13]) / InputDeviations[Z, 13];
-                InputPixels.Pixel15 = ((Pixel15 - ReferencePixel) - InputAverages[Z, 14]) / InputDeviations[Z, 14];
-                InputPixels.Pixel16 = ((Pixel16 - ReferencePixel) - InputAverages[Z, 15]) / InputDeviations[Z, 15];
-                InputPixels.Pixel17 = ((Pixel17 - ReferencePixel) - InputAverages[Z, 16]) / InputDeviations[Z, 16];
-                InputPixels.Pixel18 = ((Pixel18 - ReferencePixel) - InputAverages[Z, 17]) / InputDeviations[Z, 17];
-                InputPixels.Pixel19 = ((Pixel19 - ReferencePixel) - InputAverages[Z, 18]) / InputDeviations[Z, 18];
-                InputPixels.Pixel20 = ((Pixel20 - ReferencePixel) - InputAverages[Z, 19]) / InputDeviations[Z, 19];
-                InputPixels.Pixel21 = ((Pixel21 - ReferencePixel) - ReferencePixel - InputAverages[Z, 20]) / InputDeviations[Z, 20];
-                InputPixels.Pixel22 = ((Pixel22 - ReferencePixel) - InputAverages[Z, 21]) / InputDeviations[Z, 21];
-                InputPixels.Pixel23 = ((Pixel23 - ReferencePixel) - InputAverages[Z, 22]) / InputDeviations[Z, 22];
-                InputPixels.Pixel24 = ((Pixel24 - ReferencePixel) - InputAverages[Z, 23]) / InputDeviations[Z, 23];
-                InputPixels.Pixel25 = ((Pixel25 - ReferencePixel) - InputAverages[Z, 24]) / InputDeviations[Z, 24];
+                
 
 
             float
@@ -274,11 +250,40 @@ namespace Upscale2x.ViewModels
             //iterate through each output pixel, calculating the necessary layer outputs and final output for each
             Layer1Data Layer1 = default;
             Layer2Data Layer2 = default;
+            InputPixelData InputPixels = default;
 
             int ModelCount = UseBaseModel ? 2 : 1;
 
             for (int i = 0; i < ModelCount; i++)
             {
+                int offset = UseBaseModel && i == 0 ? 25 : 0;
+
+                InputPixels.Pixel1 = ((Pixel1 - ReferencePixel) - InputAverages[Z, 0 + offset]) / InputDeviations[Z, 0 + offset];
+                InputPixels.Pixel2 = ((Pixel2 - ReferencePixel) - InputAverages[Z, 1 + offset]) / InputDeviations[Z, 1 + offset];
+                InputPixels.Pixel3 = ((Pixel3 - ReferencePixel) - InputAverages[Z, 2 + offset]) / InputDeviations[Z, 2 + offset];
+                InputPixels.Pixel4 = ((Pixel4 - ReferencePixel) - InputAverages[Z, 3 + offset]) / InputDeviations[Z, 3 + offset];
+                InputPixels.Pixel5 = ((Pixel5 - ReferencePixel) - InputAverages[Z, 4 + offset]) / InputDeviations[Z, 4 + offset];
+                InputPixels.Pixel6 = ((Pixel6 - ReferencePixel) - InputAverages[Z, 5 + offset]) / InputDeviations[Z, 5 + offset];
+                InputPixels.Pixel7 = ((Pixel7 - ReferencePixel) - InputAverages[Z, 6 + offset]) / InputDeviations[Z, 6 + offset];
+                InputPixels.Pixel8 = ((Pixel8 - ReferencePixel) - InputAverages[Z, 7 + offset]) / InputDeviations[Z, 7 + offset];
+                InputPixels.Pixel9 = ((Pixel9 - ReferencePixel) - InputAverages[Z, 8 + offset]) / InputDeviations[Z, 8 + offset];
+                InputPixels.Pixel10 = ((Pixel10 - ReferencePixel) - InputAverages[Z, 9 + offset]) / InputDeviations[Z, 9 + offset];
+                InputPixels.Pixel11 = ((Pixel11 - ReferencePixel) - InputAverages[Z, 10 + offset]) / InputDeviations[Z, 10 + offset];
+                InputPixels.Pixel12 = ((Pixel12 - ReferencePixel) - InputAverages[Z, 11 + offset]) / InputDeviations[Z, 11 + offset];
+                InputPixels.Pixel13 = (0f - InputAverages[Z, 12 + offset]) / InputDeviations[Z, 12 + offset];
+                InputPixels.Pixel14 = ((Pixel14 - ReferencePixel) - InputAverages[Z, 13 + offset]) / InputDeviations[Z, 13 + offset];
+                InputPixels.Pixel15 = ((Pixel15 - ReferencePixel) - InputAverages[Z, 14 + offset]) / InputDeviations[Z, 14 + offset];
+                InputPixels.Pixel16 = ((Pixel16 - ReferencePixel) - InputAverages[Z, 15 + offset]) / InputDeviations[Z, 15 + offset];
+                InputPixels.Pixel17 = ((Pixel17 - ReferencePixel) - InputAverages[Z, 16 + offset]) / InputDeviations[Z, 16 + offset];
+                InputPixels.Pixel18 = ((Pixel18 - ReferencePixel) - InputAverages[Z, 17 + offset]) / InputDeviations[Z, 17 + offset];
+                InputPixels.Pixel19 = ((Pixel19 - ReferencePixel) - InputAverages[Z, 18 + offset]) / InputDeviations[Z, 18 + offset];
+                InputPixels.Pixel20 = ((Pixel20 - ReferencePixel) - InputAverages[Z, 19 + offset]) / InputDeviations[Z, 19 + offset];
+                InputPixels.Pixel21 = ((Pixel21 - ReferencePixel) - ReferencePixel - InputAverages[Z, 20 + offset]) / InputDeviations[Z, 20 + offset];
+                InputPixels.Pixel22 = ((Pixel22 - ReferencePixel) - InputAverages[Z, 21 + offset]) / InputDeviations[Z, 21 + offset];
+                InputPixels.Pixel23 = ((Pixel23 - ReferencePixel) - InputAverages[Z, 22 + offset]) / InputDeviations[Z, 22 + offset];
+                InputPixels.Pixel24 = ((Pixel24 - ReferencePixel) - InputAverages[Z, 23 + offset]) / InputDeviations[Z, 23 + offset];
+                InputPixels.Pixel25 = ((Pixel25 - ReferencePixel) - InputAverages[Z, 24 + offset]) / InputDeviations[Z, 24 + offset];
+
                 //Calculate Layer 1 outputs
                 Layer1.Neuron1 = GetLayer1Output(0, InputPixels, Z, i);
                 Layer1.Neuron2 = GetLayer1Output(1, InputPixels, Z, i);
