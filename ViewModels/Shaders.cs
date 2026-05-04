@@ -143,6 +143,7 @@ namespace Upscale2x.ViewModels
             bool Use2DOutput,
             bool Accelerated,
             bool Analyze,
+            bool UseBaseModel,
             ReadOnlyTexture2D<float> InputAverages,
             ReadOnlyTexture2D<float> InputDeviations,
             ReadOnlyTexture3D<float> Layer1Weights,
@@ -254,88 +255,81 @@ namespace Upscale2x.ViewModels
                 InputPixels.Pixel24 = ((Pixel24 - ReferencePixel) - InputAverages[Z, 23]) / InputDeviations[Z, 23];
                 InputPixels.Pixel25 = ((Pixel25 - ReferencePixel) - InputAverages[Z, 24]) / InputDeviations[Z, 24];
 
-            
+
             float
                 CenterWeight = 0.5625f,
                 CloseCornerWeight = 0.1875f,
                 FarCornerWeight = 0.0625f;
 
             float4
-                Reference1 = Pixel7 * FarCornerWeight + Pixel8 * CloseCornerWeight + Pixel12 * CloseCornerWeight + ReferencePixel * CenterWeight,
-                Reference2 = Pixel8 * CloseCornerWeight + Pixel9 * FarCornerWeight + ReferencePixel * CenterWeight + Pixel14 * CloseCornerWeight,
-                Reference3 = Pixel12 * CloseCornerWeight + ReferencePixel * CenterWeight + Pixel17 * FarCornerWeight + Pixel18 * CloseCornerWeight,
-                Reference4 = ReferencePixel * CenterWeight + Pixel14 * CloseCornerWeight + Pixel18 * CloseCornerWeight + Pixel19 * FarCornerWeight;
+                Reference1 = Accelerated && !UseBaseModel ? Pixel7 * FarCornerWeight + Pixel8 * CloseCornerWeight + Pixel12 * CloseCornerWeight + ReferencePixel * CenterWeight : ReferencePixel,
+                Reference2 = Accelerated && !UseBaseModel ? Pixel8 * CloseCornerWeight + Pixel9 * FarCornerWeight + ReferencePixel * CenterWeight + Pixel14 * CloseCornerWeight : ReferencePixel,
+                Reference3 = Accelerated && !UseBaseModel ? Pixel12 * CloseCornerWeight + ReferencePixel * CenterWeight + Pixel17 * FarCornerWeight + Pixel18 * CloseCornerWeight : ReferencePixel,
+                Reference4 = Accelerated && !UseBaseModel ? ReferencePixel * CenterWeight + Pixel14 * CloseCornerWeight + Pixel18 * CloseCornerWeight + Pixel19 * FarCornerWeight : ReferencePixel,
+                Output1 = new float4(0,0,0,0),
+                Output2 = new float4(0,0,0,0),
+                Output3 = new float4(0,0,0,0),
+                Output4 = new float4(0,0,0,0);
 
             //iterate through each output pixel, calculating the necessary layer outputs and final output for each
             Layer1Data Layer1 = default;
             Layer2Data Layer2 = default;
-            //Layer3Data Layer3 = default;
-            //Float4x4 Outputs = default;
 
-            //for (int i = 0; i < 4; i++)
-            //{
+            int ModelCount = UseBaseModel ? 2 : 1;
+
+            for (int i = 0; i < ModelCount; i++)
+            {
                 //Calculate Layer 1 outputs
-                Layer1.Neuron1 = GetLayer1Output(0, InputPixels, Z);
-                Layer1.Neuron2 = GetLayer1Output(1, InputPixels, Z);
-                Layer1.Neuron3 = GetLayer1Output(2, InputPixels, Z);
-                Layer1.Neuron4 = GetLayer1Output(3, InputPixels, Z);
-                Layer1.Neuron5 = GetLayer1Output(4, InputPixels, Z);
-                Layer1.Neuron6 = GetLayer1Output(5, InputPixels, Z);
-                Layer1.Neuron7 = GetLayer1Output(6, InputPixels, Z);
-                Layer1.Neuron8 = GetLayer1Output(7, InputPixels, Z);
-                Layer1.Neuron9 = GetLayer1Output(8, InputPixels, Z);
-                Layer1.Neuron10 = GetLayer1Output(9, InputPixels, Z);
-                Layer1.Neuron11 = GetLayer1Output(10, InputPixels, Z);
-                Layer1.Neuron12 = GetLayer1Output(11, InputPixels, Z);
-                Layer1.Neuron13 = GetLayer1Output(12, InputPixels, Z);
-                Layer1.Neuron14 = GetLayer1Output(13, InputPixels, Z);
-                Layer1.Neuron15 = GetLayer1Output(14, InputPixels, Z);
-                Layer1.Neuron16 = GetLayer1Output(15, InputPixels, Z);
-                Layer1.Neuron17 = GetLayer1Output(16, InputPixels, Z);
-                Layer1.Neuron18 = GetLayer1Output(17, InputPixels, Z);
+                Layer1.Neuron1 = GetLayer1Output(0, InputPixels, Z, i);
+                Layer1.Neuron2 = GetLayer1Output(1, InputPixels, Z, i);
+                Layer1.Neuron3 = GetLayer1Output(2, InputPixels, Z, i);
+                Layer1.Neuron4 = GetLayer1Output(3, InputPixels, Z, i);
+                Layer1.Neuron5 = GetLayer1Output(4, InputPixels, Z, i);
+                Layer1.Neuron6 = GetLayer1Output(5, InputPixels, Z, i);
+                Layer1.Neuron7 = GetLayer1Output(6, InputPixels, Z, i);
+                Layer1.Neuron8 = GetLayer1Output(7, InputPixels, Z, i);
+                Layer1.Neuron9 = GetLayer1Output(8, InputPixels, Z, i);
+                Layer1.Neuron10 = GetLayer1Output(9, InputPixels, Z, i);
+                Layer1.Neuron11 = GetLayer1Output(10, InputPixels, Z, i);
+                Layer1.Neuron12 = GetLayer1Output(11, InputPixels, Z, i);
+                Layer1.Neuron13 = GetLayer1Output(12, InputPixels, Z, i);
+                Layer1.Neuron14 = GetLayer1Output(13, InputPixels, Z, i);
+                Layer1.Neuron15 = GetLayer1Output(14, InputPixels, Z, i);
+                Layer1.Neuron16 = GetLayer1Output(15, InputPixels, Z, i);
+                Layer1.Neuron17 = GetLayer1Output(16, InputPixels, Z, i);
+                Layer1.Neuron18 = GetLayer1Output(17, InputPixels, Z, i);
 
 
                 //Calculate Layer 2 outputs
-                Layer2.Neuron1 = GetLayer2Output(0, Layer1, Z);
-                Layer2.Neuron2 = GetLayer2Output(1, Layer1, Z);
-                Layer2.Neuron3 = GetLayer2Output(2, Layer1, Z);
-                Layer2.Neuron4 = GetLayer2Output(3, Layer1, Z);
-                Layer2.Neuron5 = GetLayer2Output(4, Layer1, Z);
-                Layer2.Neuron6 = GetLayer2Output(5, Layer1, Z);
-                Layer2.Neuron7 = GetLayer2Output(6, Layer1, Z);
-                Layer2.Neuron8 = GetLayer2Output(7, Layer1, Z);
-                Layer2.Neuron9 = GetLayer2Output(8, Layer1, Z);
+                Layer2.Neuron1 = GetLayer2Output(0, Layer1, Z, i);
+                Layer2.Neuron2 = GetLayer2Output(1, Layer1, Z, i);
+                Layer2.Neuron3 = GetLayer2Output(2, Layer1, Z, i);
+                Layer2.Neuron4 = GetLayer2Output(3, Layer1, Z, i);
+                Layer2.Neuron5 = GetLayer2Output(4, Layer1, Z, i);
+                Layer2.Neuron6 = GetLayer2Output(5, Layer1, Z, i);
+                Layer2.Neuron7 = GetLayer2Output(6, Layer1, Z, i);
+                Layer2.Neuron8 = GetLayer2Output(7, Layer1, Z, i);
+                Layer2.Neuron9 = GetLayer2Output(8, Layer1, Z, i);
 
-                ////Calculate Layer 3 outputs
-                //Layer3.Neuron1 = GetLayer3Output(0, Layer2, Z);
-                //Layer3.Neuron2 = GetLayer3Output(1, Layer2, Z);
-                //Layer3.Neuron3 = GetLayer3Output(2, Layer2, Z);
+                //Calculate final outputs
+                Output1 = GetOutputPixel(0, Layer2, Z, i);
+                Output2 = GetOutputPixel(1, Layer2, Z, i);
+                Output3 = GetOutputPixel(2, Layer2, Z, i);
+                Output4 = GetOutputPixel(3, Layer2, Z, i);
 
-                ////Calculate Output Pixel
-                //Outputs[i] = GetOutputPixel(i, Layer3, Z);
-            //}
-
-            float4
-                Output1 = GetOutputPixel(0, Layer2, Z),
-                Output2 = GetOutputPixel(1, Layer2, Z),
-                Output3 = GetOutputPixel(2, Layer2, Z),
-                Output4 = GetOutputPixel(3, Layer2, Z);
-
-            if (Accelerated)
-            {                   
-
-                Output1 += Reference1;
-                Output2 += Reference2;
-                Output3 += Reference3;
-                Output4 += Reference4;
+                if (UseBaseModel && i == 0)
+                {
+                    Reference1 = Output1;
+                    Reference2 = Output2;
+                    Reference3 = Output3;
+                    Reference4 = Output4;
+                }
             }
-            else
-            {
-                Output1 += ReferencePixel;
-                Output2 += ReferencePixel;
-                Output3 += ReferencePixel;
-                Output4 += ReferencePixel;
-            }
+
+            Output1 += Reference1;
+            Output2 += Reference2;
+            Output3 += Reference3;
+            Output4 += Reference4;
 
 
             //Calculate Output coordinates
@@ -443,9 +437,11 @@ namespace Upscale2x.ViewModels
 
         float4 Sigmoid(float4 x) => 1 / (1 + Hlsl.Exp(-x));
 
-        float4 GetLayer1Output(int Neuron, InputPixelData Pixels, int Z)
+        float4 GetLayer1Output(int Neuron, InputPixelData Pixels, int Z, int Model)
         {
-            //Neuron = 18 * Pixel + Neuron;
+            //Neuron += 21 * Model;
+            if (UseBaseModel && Model == 0)
+                Neuron += 21;
 
             float4 value = default;
             value += Layer1Weights[Z, 0, Neuron] * Pixels.Pixel1;
@@ -481,9 +477,10 @@ namespace Upscale2x.ViewModels
             return value;
         }
 
-        float4 GetLayer2Output(int Neuron, Layer1Data Layer1, int Z)
+        float4 GetLayer2Output(int Neuron, Layer1Data Layer1, int Z, int Model)
         {
-            //Neuron = 9 * Pixel + Neuron;
+            if (UseBaseModel && Model == 0)
+                Neuron += 9;
 
             float4 value = default;
             value += Layer2Weights[Z, 0, Neuron] * Layer1.Neuron1;
@@ -534,8 +531,11 @@ namespace Upscale2x.ViewModels
         //    return value;
         //}
 
-        float4 GetOutputPixel(int Neuron, Layer2Data Layer2, int Z)
+        float4 GetOutputPixel(int Neuron, Layer2Data Layer2, int Z, int Model)
         {
+            if (UseBaseModel && Model == 0)
+                Neuron += 4;
+
             float4 value = default;
             value += OutputLayerWeights[Z, 0, Neuron] * Layer2.Neuron1;
             value += OutputLayerWeights[Z, 1, Neuron] * Layer2.Neuron2;
@@ -601,6 +601,69 @@ namespace Upscale2x.ViewModels
                 sum += InputTexture[inX + 1, inY + 1, z];
 
             OutputTexture[outX, outY, z] = sum;
+        }
+    }
+
+    [ThreadGroupSize(DefaultThreadGroupSizes.XY)]
+    [GeneratedComputeShaderDescriptor]
+    public readonly partial struct Reduce2D(
+    ReadWriteTexture2D<float> InputTexture,
+    ReadWriteTexture2D<float> OutputTexture,
+    int InputWidth,
+    int InputHeight) : IComputeShader
+    {
+        public void Execute()
+        {
+            // ThreadIds map to the OUTPUT texture coordinates
+            int outX = ThreadIds.X;
+            int outY = ThreadIds.Y;
+
+            // Calculate the top-left corner of the 2x2 block in the input
+            int inX = outX * 2;
+            int inY = outY * 2;
+
+            float sum = 0;
+
+            // Safely sample the 2x2 block, treating out-of-bounds as 0
+            if (inX < InputWidth && inY < InputHeight)
+                sum += InputTexture[inX, inY];
+
+            if (inX + 1 < InputWidth && inY < InputHeight)
+                sum += InputTexture[inX + 1, inY];
+
+            if (inX < InputWidth && inY + 1 < InputHeight)
+                sum += InputTexture[inX, inY + 1];
+
+            if (inX + 1 < InputWidth && inY + 1 < InputHeight)
+                sum += InputTexture[inX + 1, inY + 1];
+
+            OutputTexture[outX, outY] = sum;
+        }
+    }
+
+    [ThreadGroupSize(DefaultThreadGroupSizes.XY)]
+    [GeneratedComputeShaderDescriptor]
+    public readonly partial struct ConvertErrors(
+    ReadWriteTexture2D<float4> InputTexture,
+    ReadWriteTexture2D<float> OutputTexture) : IComputeShader
+    {
+        public void Execute()
+        {
+            int outX = ThreadIds.X;
+            int outY = ThreadIds.Y;
+
+            OutputTexture[outX, outY] = InputTexture[outX, outY].R;
+        }
+    }
+
+    [ThreadGroupSize(DefaultThreadGroupSizes.X)]
+    [GeneratedComputeShaderDescriptor]
+    [RequiresDoublePrecisionSupport]
+    public readonly partial struct SumErrors2D(ReadWriteTexture2D<float> CalculatedErrors, ReadWriteBuffer<double> ErrorTotal) : IComputeShader
+    {
+        public void Execute()
+        {
+            ErrorTotal[ThreadIds.X] = CalculatedErrors[ThreadIds.X, 0];
         }
     }
 }

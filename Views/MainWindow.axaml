@@ -42,7 +42,7 @@
     
     <Button Content="📂 Open" Command="{Binding Load_Image}"/>
 
-    <Grid HorizontalAlignment="Center" VerticalAlignment="Center" IsEnabled="{Binding IsNotTraining}" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,Auto">
+    <Grid HorizontalAlignment="Center" VerticalAlignment="Center" IsEnabled="{Binding IsNotTraining}" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,Auto, Auto">
         <Grid.Styles>
             <Style Selector="RadioButton">
                 <Setter Property="Margin" Value="-5,-10"/> 
@@ -55,14 +55,17 @@
             </Style>
         </Grid.Styles>
 
-        <RadioButton Grid.Row="1" Content="Base Model" GroupName="ModelMode" IsChecked="{Binding BaseMode}" ToolTip.Tip="The base model is trained first, learns the core upscaling function." />
-        <RadioButton Grid.Row="2" Content="Refine Model" GroupName="ModelMode" IsChecked="{Binding RefineMode}" ToolTip.Tip="The refine model is trained second, learns to improve fine detail."/>
+        <TextBlock Text="Model Select" Opacity="0.5"/>
+        <TextBlock Grid.Column="1" Text="Improvement" Opacity="0.5" HorizontalAlignment="Right"/>
 
-        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding BaseImprovement, StringFormat=P2}"/>
-        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding RefineImprovement, StringFormat=P2}"/>
+        <RadioButton Grid.Row="1" Content="Base Model" GroupName="ModelMode" IsChecked="{Binding BaseMode}" ToolTip.Tip="The base model is trained first, learns the core upscaling function." VerticalAlignment="Center"/>
+        <RadioButton Grid.Row="2" Content="Refine Model" GroupName="ModelMode" IsChecked="{Binding RefineMode}" ToolTip.Tip="The refine model is trained second, learns to improve fine detail." VerticalAlignment="Center"/>
 
-        <Button Grid.Row="1" Grid.Column="2" Content="Reset" IsVisible="{Binding BaseModelEnabled}"/>
-        <Button Grid.Row="2" Grid.Column="2" Content="Reset" IsVisible="{Binding RefineModelEnabled}"/>
+        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding BaseImprovement, StringFormat=P2}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding RefineImprovement, StringFormat=P2}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+
+        <Button Grid.Row="1" Grid.Column="2" Content="Reset" IsVisible="{Binding BaseModelEnabled}" VerticalAlignment="Center" Command="{Binding ResetBaseModel_Click}"/>
+        <Button Grid.Row="2" Grid.Column="2" Content="Reset" IsVisible="{Binding RefineModelEnabled}" VerticalAlignment="Center" Command="{Binding ResetRefineModel_Click}"/>
     </Grid>
 
 

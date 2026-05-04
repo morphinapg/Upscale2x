@@ -210,7 +210,8 @@ namespace Upscale2x.ViewModels
                     if (RefineModel is null)
                     {
                         RefineModel = new Evolution(true);
-                        RefineModel.TestAccuracy(InputImage, DownscaledImage, true);
+
+                        OnPropertyChanged(nameof(RefineImprovement));
                     }
                         
 
@@ -231,7 +232,7 @@ namespace Upscale2x.ViewModels
                     if (BaseModel is null)
                     {
                         BaseModel = new Evolution(false);
-                        BaseModel.TestAccuracy(InputImage, DownscaledImage, false);
+                        OnPropertyChanged(nameof(BaseImprovement));
                     }
 
                     if (RefineModel is not null)
@@ -258,7 +259,9 @@ namespace Upscale2x.ViewModels
         {
             get
             {
-                if (BaseModel is null || Error is null)
+                var Model = RefineMode ? RefineModel : BaseModel;
+
+                if (Model is null || Error is null)
                     return null;
                 else
                 {
@@ -275,10 +278,10 @@ namespace Upscale2x.ViewModels
                            "Improvement: " + Improvement.ToString("P2") + "\r\n";
                     }
                     else
-                        BaseModel.OldError = Error;
+                        Model.OldError = Error;
                        
 
-                    message += BaseModel.LastUpdateText;
+                    message += Model.LastUpdateText;
 
                     return message;
                 }
@@ -390,21 +393,13 @@ namespace Upscale2x.ViewModels
 
                 GPU.ForEach(DownscaledImage, new GPUDownscale(InputImage));
 
-                //using var FloatTexture = GPU.AllocateReadWriteTexture2D<float4>(InputImage.Width, InputImage.Height);
-                //GPU.For(InputImage_GPU.Width, InputImage_GPU.Height, new CopyToFloat(InputImage_GPU, FloatTexture));
+                //We need to calculate BaseError, which will be used as reference for the total model improvement
+                //For this we will create a temporary Evolution instance and calculate the error without any training, as this will be the error of a bilinear upscale which is our baseline for improvement
+                 var TempEvolution = new Evolution(false);
+                // TempEvolution.TestAccuracy(InputImage, DownscaledImage, false);
+                //TempEvolution.UpdateTopModel(0);
 
-                //var FloatData = new float4[TotalPixels];
-                //FloatTexture.CopyTo(FloatData);
-
-                //var count = TotalPixels * 3f;
-
-                //var avg = FloatData.AsParallel().Sum(x => x.R + x.G + x.B) / count;
-                //Average = avg;
-                //Deviation = MathF.Sqrt(FloatData.AsParallel().Sum(x => MathF.Pow(x.R - avg, 2) + MathF.Pow(x.G - avg, 2) + MathF.Pow(x.B - avg, 2)) / count);
-                //if (Deviation == 0)
-                //    Deviation = 0.5f;
-
-                //RefineMode = AcceleratedMode;
+                BaseError = TempEvolution.InitializeError(InputImage, DownscaledImage, false);
 
                 if (BaseMode && BaseModel is null)
                     BaseModel = new Evolution(false);
@@ -427,20 +422,49 @@ namespace Upscale2x.ViewModels
 
         void ResetModel()
         {
-            //if (AcceleratedMode)
-                BaseModel?.ResetEvolution();
-            //else if (Average.HasValue && Deviation.HasValue)
-                //Evolution?.ResetEvolution(Average.Value, Deviation.Value);
+            ////if (AcceleratedMode)
+            //    BaseModel?.ResetEvolution();
+            ////else if (Average.HasValue && Deviation.HasValue)
+            //    //Evolution?.ResetEvolution(Average.Value, Deviation.Value);
 
-            //RefineMode = AcceleratedMode;
-            
-            if (BaseModel is not null)
-                BaseModel.RefineModel = RefineMode;
+            ////RefineMode = AcceleratedMode;
 
-            ModelReset = false;
+            //if (BaseModel is not null)
+            //    BaseModel.RefineModel = RefineMode;
 
-            OnPropertyChanged(nameof(ModelEnabled));
-            OnPropertyChanged(nameof(ReadyToTrain));
+            //ModelReset = false;
+
+            //OnPropertyChanged(nameof(ModelEnabled));
+            //OnPropertyChanged(nameof(ReadyToTrain));
+
+            if (RefineMode)
+            {
+                if (RefineModel is not null)
+                    RefineModel.ResetEvolution();
+                else
+                    RefineModel = new Evolution(true);
+
+                BaseModel = null;
+
+                OnPropertyChanged(nameof(BaseModelEnabled));
+                OnPropertyChanged(nameof(BaseImprovement));
+
+                OnPropertyChanged(nameof(RefineImprovement));
+                OnPropertyChanged(nameof(TotalImprovement));
+            }
+            else
+            {
+                if (BaseModel is not null)
+                    BaseModel.ResetEvolution();
+                else
+                    BaseModel = new Evolution(false);
+
+                RefineModel = null;
+                OnPropertyChanged(nameof(RefineModelEnabled));
+                OnPropertyChanged(nameof(RefineImprovement));
+                OnPropertyChanged(nameof(TotalImprovement));
+                OnPropertyChanged(nameof(BaseImprovement));
+            }
         }
 
         public MainViewModel()
@@ -483,17 +507,44 @@ namespace Upscale2x.ViewModels
                     {
                         while (IsTraining)
                         {
-                            Model.NextGeneration(InputImage, DownscaledImage, RefineMode);
+                            var basemodel = RefineMode ? BaseModel?.TopModel : null;
+
+                            Model.NextGeneration(InputImage, DownscaledImage, RefineMode, basemodel);
+
+                            OnPropertyChanged(nameof(BaseImprovement));
+                            OnPropertyChanged(nameof(RefineImprovement));
+                            OnPropertyChanged(nameof(TotalImprovement));
                         }
                     });
                 }
             }            
         }
 
-        public double? Error => BaseModel is not null ? BaseModel.Error : null;
-        public double? OldError => BaseModel is not null ? BaseModel.OldError : null;
+        public double? Error// => BaseModel is not null ? BaseModel.Error : null;
+        {
+            get
+            {
+                var model = RefineMode ? RefineModel : BaseModel;
+                return model is not null ? model.Error : null;
+            }
+        }
+        public double? OldError //BaseModel is not null ? BaseModel.OldError : null;
+        {
+            get
+            {
+                var model = RefineMode ? RefineModel : BaseModel;
+                return model is not null ? model.OldError : null;
+            }
+        }
 
-        public int? Generations => BaseModel is not null ? BaseModel.Generations : null;
+        public int? Generations// => BaseModel is not null ? BaseModel.Generations : null;
+        {
+            get
+            {
+                var model = RefineMode ? RefineModel : BaseModel;
+                return model is not null ? model.Generations : null;
+            }
+        }
 
         SKBitmap? Bitmap16;
 
@@ -646,7 +697,7 @@ namespace Upscale2x.ViewModels
 
                 var options = new FilePickerSaveOptions
                 {
-                    Title = "Save MOdel",
+                    Title = "Save Model",
                     FileTypeChoices = FileTypes
                 };
 
@@ -663,7 +714,22 @@ namespace Upscale2x.ViewModels
                     {
                         ModelPath = Path.GetDirectoryName(path);
 
-                        await WriteObjectAsync(path, new Evolution(BaseModel));
+                        Evolution? Base = null, Refine = null;
+
+                        if (BaseModel is not null)
+                            Base = new Evolution(BaseModel);
+
+                        if (RefineModel is not null)
+                            Refine = new Evolution(RefineModel);
+
+                        var Bundle = new ModelBundle
+                        {
+                            BaseModel = Base,
+                            RefineModel = Refine,
+                            RefineMode = RefineMode
+                        };
+
+                        await WriteObjectAsync(path, Bundle);
                     }
                 }
             }
@@ -699,22 +765,14 @@ namespace Upscale2x.ViewModels
                     {
                         ModelPath = Path.GetDirectoryName(path);
 
-                        var model = await ReadObjectAsync<Evolution>(path);
-
-                        if (model is not null)
+                        try
                         {
-                            //ReadWriteTexture2D<Rgba64, float4>? 
-                            //    InputImage = null, 
-                            //    DownscaledImage = null;
+                            var model = await ReadObjectAsync<ModelBundle>(path);
 
-                            //if (BaseModel is not null)
-                            //{
-                            //    InputImage = BaseModel.InputImage;
-                            //    DownscaledImage = BaseModel.DownscaledImage;
-                            //}
+                            BaseModel = model.BaseModel;
+                            RefineModel = model.RefineModel;
+                            RefineMode = model.RefineMode;
 
-                            BaseModel = model;        
-                            
                             //if (InputImage is not null && DownscaledImage is not null)
                             //    UpdateImages(InputImage, DownscaledImage);
 
@@ -722,8 +780,61 @@ namespace Upscale2x.ViewModels
                             OnPropertyChanged(nameof(ReadyToTrain));
                             OnPropertyChanged(nameof(RefineMode));
                         }
+                        catch (Exception) { }
                     }
                 }
+            }
+        }
+
+        public CommandHandler ResetBaseModel_Click => new CommandHandler(ResetBaseModel);
+
+        void ResetBaseModel()
+        {
+            if (RefineMode)
+            {
+                BaseModel = null;
+
+                OnPropertyChanged(nameof(BaseModelEnabled));
+                OnPropertyChanged(nameof(BaseImprovement));
+
+                OnPropertyChanged(nameof(RefineImprovement));
+                OnPropertyChanged(nameof(TotalImprovement));
+            }
+            else
+            {
+                if (BaseModel is not null)
+                    BaseModel.ResetEvolution();
+                else
+                    BaseModel = new Evolution(false);
+
+                OnPropertyChanged(nameof(RefineModelEnabled));
+                OnPropertyChanged(nameof(RefineImprovement));
+                OnPropertyChanged(nameof(TotalImprovement));
+                OnPropertyChanged(nameof(BaseImprovement));
+            }
+        }
+
+        public CommandHandler ResetRefineModel_Click => new CommandHandler(ResetRefineModel);
+
+        void ResetRefineModel()
+        {
+            if (RefineMode)
+            {
+                if (RefineModel is not null)
+                    RefineModel.ResetEvolution();
+                else
+                    RefineModel = new Evolution(true);
+
+                OnPropertyChanged(nameof(RefineModelEnabled));
+                OnPropertyChanged(nameof(RefineImprovement));
+                OnPropertyChanged(nameof(TotalImprovement));
+            }
+            else
+            {
+                RefineModel = null;
+                OnPropertyChanged(nameof(RefineModelEnabled));
+                OnPropertyChanged(nameof(RefineImprovement));
+                OnPropertyChanged(nameof(TotalImprovement));
             }
         }
     }

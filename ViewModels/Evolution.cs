@@ -307,14 +307,14 @@ namespace Upscale2x.ViewModels
             }
         }
 
-        public void NextGeneration(ReadWriteTexture2D<Rgba64, float4>? InputImage, ReadWriteTexture2D<Rgba64, float4>? DownscaledImage, bool RefineMode)
+        public void NextGeneration(ReadWriteTexture2D<Rgba64, float4>? InputImage, ReadWriteTexture2D<Rgba64, float4>? DownscaledImage, bool RefineMode, NeuralNetwork? BaseModel = null)
         {
             Generations++;
 
             // STEP 1 - ACCURACY TESTING //
             //First, we need to test every NeuralNetwork in every Evolution model for accuracy
             //This will leverage the GPU
-            TestAccuracy(InputImage, DownscaledImage, RefineMode);
+            TestAccuracy(InputImage, DownscaledImage, RefineMode, BaseModel);
 
             // STEP 2 - SORTING //
             Parallel.ForEach(FamilyTrees, x => x.Sort());
@@ -441,7 +441,7 @@ namespace Upscale2x.ViewModels
         
 
 
-        public async Task<OutputBitmaps?> Upscale(ReadWriteTexture2D<Rgba64, float4>? InputImage, bool AcceleratedMode, bool AnalyzeRender)
+        public async Task<OutputBitmaps?> Upscale(ReadWriteTexture2D<Rgba64, float4>? InputImage, bool AcceleratedMode, bool AnalyzeRender, NeuralNetwork? BaseModel = null)
         {
             if (InputImage is not null)
             {
@@ -462,28 +462,38 @@ namespace Upscale2x.ViewModels
 
                         var Params = Model.GetModelParameters();
 
+                        var UseBase = BaseModel is not null;
+                        var BaseParams = BaseModel is not null ? BaseModel.GetModelParameters() : Params;
+                        var models = UseBase ? 2 : 1;
+
                         float[,]
-                                InputAverages_CPU = new float[Stats.Layer1Inputs, 1],
-                                InputDeviations_CPU = new float[Stats.Layer1Inputs, 1],
-                                Layer1Biases_CPU = new float[Stats.Layer1Size, 1],
-                                Layer1OutputBiases_CPU = new float[Stats.Layer1Size, 1],
-                                Layer2Biases_CPU = new float[Stats.Layer2Size, 1],
-                                Layer2OutputBiases_CPU = new float[Stats.Layer2Size, 1],
+                                InputAverages_CPU = new float[Stats.Layer1Inputs * models, 1],
+                                InputDeviations_CPU = new float[Stats.Layer1Inputs * models, 1],
+                                Layer1Biases_CPU = new float[Stats.Layer1Size * models, 1],
+                                Layer1OutputBiases_CPU = new float[Stats.Layer1Size * models, 1],
+                                Layer2Biases_CPU = new float[Stats.Layer2Size * models, 1],
+                                Layer2OutputBiases_CPU = new float[Stats.Layer2Size * models, 1],
                                 //Layer3Biases_CPU = new float[Stats.Layer3Size, 1],
                                 //Layer3OutputBiases_CPU = new float[Stats.Layer3Size, 1],
-                                OutputLayerBiases_CPU = new float[Stats.Outputs, 1];
+                                OutputLayerBiases_CPU = new float[Stats.Outputs * models, 1];
 
                         float[,,]
-                            Layer1Weights_CPU = new float[Stats.Layer1Size, Stats.Layer1Inputs, 1],
-                            Layer2Weights_CPU = new float[Stats.Layer2Size, Stats.Layer2Inputs, 1],
+                            Layer1Weights_CPU = new float[Stats.Layer1Size * models, Stats.Layer1Inputs, 1],
+                            Layer2Weights_CPU = new float[Stats.Layer2Size * models, Stats.Layer2Inputs, 1],
                             //Layer3Weights_CPU = new float[Stats.Layer3Size, Stats.Layer3Inputs, 1],
-                            OutputLayerWeights_CPU = new float[Stats.Outputs, Stats.OutputInputs, 1];
+                            OutputLayerWeights_CPU = new float[Stats.Outputs * models, Stats.OutputInputs, 1];
 
                         //Input Layer
                         for (int x = 0; x < Stats.Layer1Inputs; x++)
                         {
                             InputAverages_CPU[x, 0] = Params.InputAverages[x];
                             InputDeviations_CPU[x, 0] = Params.InputDeviations[x];
+
+                            if (UseBase)
+                            {
+                                InputAverages_CPU[x + Stats.Layer1Inputs, 0] = BaseParams.InputAverages[x];
+                                InputDeviations_CPU[x + Stats.Layer1Inputs, 0] = BaseParams.InputDeviations[x];
+                            }
                         }
 
                         //Layer 1
@@ -494,6 +504,14 @@ namespace Upscale2x.ViewModels
 
                             Layer1Biases_CPU[x, 0] = Params.Layer1Biases[x];
                             Layer1OutputBiases_CPU[x, 0] = Params.Layer1OutputBiases[x];
+
+                            if (UseBase)
+                            {
+                                for (int y = 0; y < Stats.Layer1Inputs; y++)
+                                    Layer1Weights_CPU[x + Stats.Layer1Size, y, 0] = BaseParams.Layer1Weights[x, y];
+                                Layer1Biases_CPU[x + Stats.Layer1Size, 0] = BaseParams.Layer1Biases[x];
+                                Layer1OutputBiases_CPU[x + Stats.Layer1Size, 0] = BaseParams.Layer1OutputBiases[x];
+                            }
                         }
 
                         //Layer 2
@@ -504,6 +522,14 @@ namespace Upscale2x.ViewModels
 
                             Layer2Biases_CPU[x, 0] = Params.Layer2Biases[x];
                             Layer2OutputBiases_CPU[x, 0] = Params.Layer2OutputBiases[x];
+
+                            if (UseBase)
+                            {
+                                for (int y = 0; y < Stats.Layer2Inputs; y++)
+                                    Layer2Weights_CPU[x + Stats.Layer2Size, y, 0] = BaseParams.Layer2Weights[x, y];
+                                Layer2Biases_CPU[x + Stats.Layer2Size, 0] = BaseParams.Layer2Biases[x];
+                                Layer2OutputBiases_CPU[x + Stats.Layer2Size, 0] = BaseParams.Layer2OutputBiases[x];
+                            }
                         }
 
                         ////Layer 3
@@ -552,6 +578,7 @@ namespace Upscale2x.ViewModels
                             true,
                             AcceleratedMode,
                             AnalyzeRender,
+                            UseBase,
                             InputAverages,
                             InputDeviations,
                             Layer1Weights,
@@ -659,17 +686,28 @@ namespace Upscale2x.ViewModels
             return bitmap;
         }
 
+        public double? InitializeError(ReadWriteTexture2D<Rgba64, float4>? InputImage, ReadWriteTexture2D<Rgba64, float4>? DownscaledImage, bool RefineMode, NeuralNetwork? BaseModel = null)
+        {
+            TestAccuracy(InputImage, DownscaledImage, RefineMode, BaseModel, true);
+
+            var Model = FamilyTrees.SelectMany(x => x).Where(x => x is not null && x.Error is not null).FirstOrDefault();
+
+            return Model?.Error;
+        }
         
 
-        public void TestAccuracy(ReadWriteTexture2D<Rgba64, float4>? InputImage, ReadWriteTexture2D<Rgba64, float4>? DownscaledImage, bool RefineMode)
+        void TestAccuracy(ReadWriteTexture2D<Rgba64, float4>? InputImage, ReadWriteTexture2D<Rgba64, float4>? DownscaledImage, bool RefineMode, NeuralNetwork? BaseModel = null, bool Initialize = false)
         {
-            if (InputImage is not null && DownscaledImage is not null)
+            var Tops = TopModels.SelectMany(x => x);
+            var AllModels = FamilyTrees.SelectMany(x => x).Concat(Tops).Where(x => x is not null && x.Error is null).ToList();
+
+            if (Initialize) 
+                AllModels = AllModels.Take(1).ToList();
+
+            if (InputImage is not null && DownscaledImage is not null && AllModels.Any())
             {
                 int UpscaledPixels = DownscaledImage.Width * 2 * DownscaledImage.Height * 2;
-
-
-                var Tops = TopModels.SelectMany(x => x);
-                var AllModels = FamilyTrees.SelectMany(x => x).Concat(Tops).Where(x => x is not null && x.Error is null).ToList();
+                            
 
                 var Stats = AllModels.First().GetModelStats();
 
@@ -750,22 +788,27 @@ namespace Upscale2x.ViewModels
                     using var CalculatedErrors = Current2DTexture ? GPU.AllocateReadWriteTexture3D<float>(2, 2, 1) : GPU.AllocateReadWriteTexture3D<float>(NewWidth, NewHeight, CurrentBatchSize);
                     using var OutputTexture = Current2DTexture ? GPU.AllocateReadWriteTexture2D<float4>(NewWidth, NewHeight) : GPU.AllocateReadWriteTexture2D<float4>(2, 2);
 
+                    int models = BaseModel is null ? 1 : 2;
+
                     float[,]
-                        InputAverages_CPU = new float[Stats.Layer1Inputs, CurrentBatchSize],
-                        InputDeviations_CPU = new float[Stats.Layer1Inputs, CurrentBatchSize],
-                        Layer1Biases_CPU = new float[Stats.Layer1Size, CurrentBatchSize],
-                        Layer1OutputBiases_CPU = new float[Stats.Layer1Size, CurrentBatchSize],
-                        Layer2Biases_CPU = new float[Stats.Layer2Size, CurrentBatchSize],
-                        Layer2OutputBiases_CPU = new float[Stats.Layer2Size, CurrentBatchSize],
+                        InputAverages_CPU = new float[Stats.Layer1Inputs * models, CurrentBatchSize],
+                        InputDeviations_CPU = new float[Stats.Layer1Inputs * models, CurrentBatchSize],
+                        Layer1Biases_CPU = new float[Stats.Layer1Size * models, CurrentBatchSize],
+                        Layer1OutputBiases_CPU = new float[Stats.Layer1Size * models, CurrentBatchSize],
+                        Layer2Biases_CPU = new float[Stats.Layer2Size * models, CurrentBatchSize],
+                        Layer2OutputBiases_CPU = new float[Stats.Layer2Size * models, CurrentBatchSize],
                         //Layer3Biases_CPU = new float[Stats.Layer3Size, CurrentBatchSize],
                         //Layer3OutputBiases_CPU = new float[Stats.Layer3Size, CurrentBatchSize],
-                        OutputLayerBiases_CPU = new float[Stats.Outputs, CurrentBatchSize];
+                        OutputLayerBiases_CPU = new float[Stats.Outputs * models, CurrentBatchSize];
 
                     float[,,]
-                        Layer1Weights_CPU = new float[Stats.Layer1Size, Stats.Layer1Inputs, CurrentBatchSize],
-                        Layer2Weights_CPU = new float[Stats.Layer2Size, Stats.Layer2Inputs, CurrentBatchSize],
+                        Layer1Weights_CPU = new float[Stats.Layer1Size * models, Stats.Layer1Inputs, CurrentBatchSize],
+                        Layer2Weights_CPU = new float[Stats.Layer2Size * models, Stats.Layer2Inputs, CurrentBatchSize],
                         //Layer3Weights_CPU = new float[Stats.Layer3Size, Stats.Layer3Inputs, CurrentBatchSize],
-                        OutputLayerWeights_CPU = new float[Stats.Outputs, Stats.OutputInputs, CurrentBatchSize];
+                        OutputLayerWeights_CPU = new float[Stats.Outputs * models, Stats.OutputInputs, CurrentBatchSize];
+
+                    var UseBase = BaseModel is not null;
+                    var BaseParams = BaseModel is not null ? BaseModel.GetModelParameters() : CurrentBatch[0].Params;
 
                     Parallel.For(0, CurrentBatchSize, z =>
                     {
@@ -774,6 +817,12 @@ namespace Upscale2x.ViewModels
                         {
                             InputAverages_CPU[x, z] = CurrentBatch[z].Params.InputAverages[x];
                             InputDeviations_CPU[x, z] = CurrentBatch[z].Params.InputDeviations[x];
+
+                            if (UseBase)
+                            {
+                                InputAverages_CPU[x + Stats.Layer1Inputs, z] = BaseParams.InputAverages[x];
+                                InputDeviations_CPU[x + Stats.Layer1Inputs, z] = BaseParams.InputDeviations[x];
+                            }
                         }
 
                         //Layer 1
@@ -784,6 +833,14 @@ namespace Upscale2x.ViewModels
 
                             Layer1Biases_CPU[x, z] = CurrentBatch[z].Params.Layer1Biases[x];
                             Layer1OutputBiases_CPU[x,z] = CurrentBatch[z].Params.Layer1OutputBiases[x];
+
+                            if (UseBase)
+                            {
+                                for (int y = 0; y < Stats.Layer1Inputs; y++)
+                                    Layer1Weights_CPU[x + Stats.Layer1Size, y, z] = BaseParams.Layer1Weights[x, y];
+                                Layer1Biases_CPU[x + Stats.Layer1Size, z] = BaseParams.Layer1Biases[x];
+                                Layer1OutputBiases_CPU[x + Stats.Layer1Size, z] = BaseParams.Layer1OutputBiases[x];
+                            }
                         }
 
                         //Layer 2
@@ -794,6 +851,14 @@ namespace Upscale2x.ViewModels
 
                             Layer2Biases_CPU[x, z] = CurrentBatch[z].Params.Layer2Biases[x];
                             Layer2OutputBiases_CPU[x, z] = CurrentBatch[z].Params.Layer2OutputBiases[x];
+
+                            if (UseBase)
+                            {
+                                for (int y = 0; y < Stats.Layer2Inputs; y++)
+                                    Layer2Weights_CPU[x + Stats.Layer2Size, y, z] = BaseParams.Layer2Weights[x, y];
+                                Layer2Biases_CPU[x + Stats.Layer2Size, z] = BaseParams.Layer2Biases[x];
+                                Layer2OutputBiases_CPU[x + Stats.Layer2Size, z] = BaseParams.Layer2OutputBiases[x];
+                            }
                         }
 
                         ////Layer 3
@@ -813,6 +878,13 @@ namespace Upscale2x.ViewModels
                                 OutputLayerWeights_CPU[x, y, z] = CurrentBatch[z].Params.OutputLayerWeights[x, y];
 
                             OutputLayerBiases_CPU[x, z] = CurrentBatch[z].Params.OutputLayerBiases[x];
+
+                            if (UseBase)
+                            {
+                                for (int y = 0; y < Stats.OutputInputs; y++)
+                                    OutputLayerWeights_CPU[x + Stats.Outputs, y, z] = BaseParams.OutputLayerWeights[x, y];
+                                OutputLayerBiases_CPU[x + Stats.Outputs, z] = BaseParams.OutputLayerBiases[x];
+                            }
                         }
                     });
 
@@ -839,6 +911,7 @@ namespace Upscale2x.ViewModels
                         Current2DTexture,
                         RefineMode,
                         false,
+                        UseBase,
                         InputAverages,
                         InputDeviations,
                         Layer1Weights,
@@ -884,37 +957,82 @@ namespace Upscale2x.ViewModels
                     int
                         CurrentW = NewWidth , 
                         CurrentH = NewHeight;
-                    using var ReductionTexture = GPU.AllocateReadWriteTexture3D<float>(CurrentW, CurrentH, CurrentBatchSize);
+                    
 
-                    //We will use references to swap between the two
-                    var SwapInput = CalculatedErrors;
-                    var SwapOutput = ReductionTexture;
-
-                    while (CurrentW > 1 || CurrentH > 1)
+                    if (Current2DTexture)
                     {
-                        // Round up to handle odd resolutions
-                        int nextW = (CurrentW + 1) / 2;
-                        int nextH = (CurrentH + 1) / 2;
-                        GPU.For(nextW, nextH, CurrentBatchSize, new Reduce(SwapInput, SwapOutput, CurrentW, CurrentH));
+                        using var ReductionTexture = GPU.AllocateReadWriteTexture2D<float>(CurrentW, CurrentH);
 
-                        // Ping-Pong the references! Zero copy overhead.
-                        var temp = SwapInput;
-                        SwapInput = SwapOutput;
-                        SwapOutput = temp;
+                        //If we're using a 2D texture, we need to process the errors in 2D
+                        //first, convert the float4 error texture to a float texture (R channel contains the error value and the GBA channels are ignored)
 
-                        CurrentW = nextW;
-                        CurrentH = nextH;
+                        using var OutputErrors = GPU.AllocateReadWriteTexture2D<float>(NewWidth, NewHeight);
+                        GPU.For(NewWidth, NewHeight, new ConvertErrors(OutputTexture, OutputErrors));
+
+                        //We will use references to swap between the two
+                        var SwapInput = OutputErrors;
+                        var SwapOutput = ReductionTexture;
+
+                        while (CurrentW > 1 || CurrentH > 1)
+                        {
+                            // Round up to handle odd resolutions
+                            int nextW = (CurrentW + 1) / 2;
+                            int nextH = (CurrentH + 1) / 2;
+                            GPU.For(nextW, nextH, new Reduce2D(SwapInput, SwapOutput, CurrentW, CurrentH));
+
+                            // Ping-Pong the references! Zero copy overhead.
+                            var temp = SwapInput;
+                            SwapInput = SwapOutput;
+                            SwapOutput = temp;
+
+                            CurrentW = nextW;
+                            CurrentH = nextH;
+                        }
+
+                        using var ErrorTotal = GPU.AllocateReadWriteBuffer<double>(1);
+                        GPU.For(1, new SumErrors2D(SwapInput, ErrorTotal));
+
+                        // Copy the calculated error totals back to the CPU and assign them to the models
+                        var CalculatedTotals = new double[CurrentBatchSize];
+                        ErrorTotal.CopyTo(CalculatedTotals);
+
+                        CurrentBatch[0].Model.Error = CalculatedTotals[0];
                     }
+                    else
+                    {
+                        using var ReductionTexture = GPU.AllocateReadWriteTexture3D<float>(CurrentW, CurrentH, CurrentBatchSize);
 
-                    // Use SumErrors shader to sum the final values for each model into a single error total
-                    using var ErrorTotals = GPU.AllocateReadWriteBuffer<double>(CurrentBatchSize);
-                    GPU.For(CurrentBatchSize, new SumErrors(SwapInput, ErrorTotals));
+                        //We will use references to swap between the two
+                        var SwapInput = CalculatedErrors;
+                        var SwapOutput = ReductionTexture;
 
-                    // Copy the calculated error totals back to the CPU and assign them to the models
-                    var CalculatedTotals = new double[CurrentBatchSize];
-                    ErrorTotals.CopyTo(CalculatedTotals);
+                        while (CurrentW > 1 || CurrentH > 1)
+                        {
+                            // Round up to handle odd resolutions
+                            int nextW = (CurrentW + 1) / 2;
+                            int nextH = (CurrentH + 1) / 2;
+                            GPU.For(nextW, nextH, CurrentBatchSize, new Reduce(SwapInput, SwapOutput, CurrentW, CurrentH));
 
-                    Parallel.For(0, CurrentBatchSize, model => CurrentBatch[model].Model.Error = CalculatedTotals[model]);
+                            // Ping-Pong the references! Zero copy overhead.
+                            var temp = SwapInput;
+                            SwapInput = SwapOutput;
+                            SwapOutput = temp;
+
+                            CurrentW = nextW;
+                            CurrentH = nextH;
+                        }
+
+                        // Use SumErrors shader to sum the final values for each model into a single error total
+                        using var ErrorTotals = GPU.AllocateReadWriteBuffer<double>(CurrentBatchSize);
+                        GPU.For(CurrentBatchSize, new SumErrors(SwapInput, ErrorTotals));
+
+                        // Copy the calculated error totals back to the CPU and assign them to the models
+                        var CalculatedTotals = new double[CurrentBatchSize];
+                        ErrorTotals.CopyTo(CalculatedTotals);
+
+                        Parallel.For(0, CurrentBatchSize, model => CurrentBatch[model].Model.Error = CalculatedTotals[model]);
+                    }
+                    
                 }
             }
         }
@@ -931,5 +1049,15 @@ namespace Upscale2x.ViewModels
 
             //TestAccuracy_Batched();
         }
+    }
+
+    [DataContract]
+    public struct ModelBundle
+    {
+        [DataMember]
+        public Evolution? BaseModel, RefineModel;
+
+        [DataMember]
+        public bool RefineMode;
     }
 }
