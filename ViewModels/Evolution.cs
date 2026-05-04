@@ -292,6 +292,8 @@ namespace Upscale2x.ViewModels
             LastUpdate = other.LastUpdate;
             RefineModel = other.RefineModel;
 
+            Generations = other.Generations;
+
             for (int i = 0; i < NumberOfTrees; i++)
             {
                 FamilyTrees[i] = new();
@@ -473,14 +475,11 @@ namespace Upscale2x.ViewModels
                                 Layer1OutputBiases_CPU = new float[Stats.Layer1Size * models, 1],
                                 Layer2Biases_CPU = new float[Stats.Layer2Size * models, 1],
                                 Layer2OutputBiases_CPU = new float[Stats.Layer2Size * models, 1],
-                                //Layer3Biases_CPU = new float[Stats.Layer3Size, 1],
-                                //Layer3OutputBiases_CPU = new float[Stats.Layer3Size, 1],
                                 OutputLayerBiases_CPU = new float[Stats.Outputs * models, 1];
 
                         float[,,]
                             Layer1Weights_CPU = new float[Stats.Layer1Size * models, Stats.Layer1Inputs, 1],
                             Layer2Weights_CPU = new float[Stats.Layer2Size * models, Stats.Layer2Inputs, 1],
-                            //Layer3Weights_CPU = new float[Stats.Layer3Size, Stats.Layer3Inputs, 1],
                             OutputLayerWeights_CPU = new float[Stats.Outputs * models, Stats.OutputInputs, 1];
 
                         //Input Layer
@@ -532,16 +531,6 @@ namespace Upscale2x.ViewModels
                             }
                         }
 
-                        ////Layer 3
-                        //for (int x = 0; x < Stats.Layer3Size; x++)
-                        //{
-                        //    for (int y = 0; y < Stats.Layer3Inputs; y++)
-                        //        Layer3Weights_CPU[x, y, 0] = Params.Layer3Weights[x, y];
-
-                        //    Layer3Biases_CPU[x, 0] = Params.Layer3Biases[x];
-                        //    Layer3OutputBiases_CPU[x, 0] = Params.Layer3OutputBiases[x];
-                        //}
-
                         //Output Layer
                         for (int x = 0; x < Stats.Outputs; x++)
                         {
@@ -549,6 +538,13 @@ namespace Upscale2x.ViewModels
                                 OutputLayerWeights_CPU[x, y, 0] = Params.OutputLayerWeights[x, y];
 
                             OutputLayerBiases_CPU[x, 0] = Params.OutputLayerBiases[x];
+
+                            if (UseBase)
+                            {
+                                for (int y = 0; y < Stats.OutputInputs; y++)
+                                    OutputLayerWeights_CPU[x + Stats.Outputs, y, 0] = BaseParams.OutputLayerWeights[x, y];
+                                OutputLayerBiases_CPU[x + Stats.Outputs, 0] = BaseParams.OutputLayerBiases[x];
+                            }
                         }
 
                         using var InputAverages = GPU.AllocateReadOnlyTexture2D(InputAverages_CPU);
@@ -559,9 +555,6 @@ namespace Upscale2x.ViewModels
                         using var Layer2Weights = GPU.AllocateReadOnlyTexture3D(Layer2Weights_CPU);
                         using var Layer2Biases = GPU.AllocateReadOnlyTexture2D(Layer2Biases_CPU);
                         using var Layer2OutputBiases = GPU.AllocateReadOnlyTexture2D(Layer2OutputBiases_CPU);
-                        //using var Layer3Weights = GPU.AllocateReadOnlyTexture3D(Layer3Weights_CPU);
-                        //using var Layer3Biases = GPU.AllocateReadOnlyTexture2D(Layer3Biases_CPU);
-                        //using var Layer3OutputBiases = GPU.AllocateReadOnlyTexture2D(Layer3OutputBiases_CPU);
                         using var OutputLayerWeights = GPU.AllocateReadOnlyTexture3D(OutputLayerWeights_CPU);
                         using var OutputLayerBiases = GPU.AllocateReadOnlyTexture2D(OutputLayerBiases_CPU);
 
@@ -587,9 +580,6 @@ namespace Upscale2x.ViewModels
                             Layer2Weights,
                             Layer2Biases,
                             Layer2OutputBiases,
-                            //Layer3Weights,
-                            //Layer3Biases,
-                            //Layer3OutputBiases,
                             OutputLayerWeights,
                             OutputLayerBiases
                             ));
@@ -692,6 +682,7 @@ namespace Upscale2x.ViewModels
 
             var Model = FamilyTrees.SelectMany(x => x).Where(x => x is not null && x.Error is not null).FirstOrDefault();
 
+
             return Model?.Error;
         }
         
@@ -699,7 +690,7 @@ namespace Upscale2x.ViewModels
         void TestAccuracy(ReadWriteTexture2D<Rgba64, float4>? InputImage, ReadWriteTexture2D<Rgba64, float4>? DownscaledImage, bool RefineMode, NeuralNetwork? BaseModel = null, bool Initialize = false)
         {
             var Tops = TopModels.SelectMany(x => x);
-            var AllModels = FamilyTrees.SelectMany(x => x).Concat(Tops).Where(x => x is not null && x.Error is null).ToList();
+            var AllModels = FamilyTrees.SelectMany(x => x).Concat(Tops).Where(x => x is not null).ToList();
 
             if (Initialize) 
                 AllModels = AllModels.Take(1).ToList();
@@ -797,14 +788,11 @@ namespace Upscale2x.ViewModels
                         Layer1OutputBiases_CPU = new float[Stats.Layer1Size * models, CurrentBatchSize],
                         Layer2Biases_CPU = new float[Stats.Layer2Size * models, CurrentBatchSize],
                         Layer2OutputBiases_CPU = new float[Stats.Layer2Size * models, CurrentBatchSize],
-                        //Layer3Biases_CPU = new float[Stats.Layer3Size, CurrentBatchSize],
-                        //Layer3OutputBiases_CPU = new float[Stats.Layer3Size, CurrentBatchSize],
                         OutputLayerBiases_CPU = new float[Stats.Outputs * models, CurrentBatchSize];
 
                     float[,,]
                         Layer1Weights_CPU = new float[Stats.Layer1Size * models, Stats.Layer1Inputs, CurrentBatchSize],
                         Layer2Weights_CPU = new float[Stats.Layer2Size * models, Stats.Layer2Inputs, CurrentBatchSize],
-                        //Layer3Weights_CPU = new float[Stats.Layer3Size, Stats.Layer3Inputs, CurrentBatchSize],
                         OutputLayerWeights_CPU = new float[Stats.Outputs * models, Stats.OutputInputs, CurrentBatchSize];
 
                     var UseBase = BaseModel is not null;
@@ -861,16 +849,6 @@ namespace Upscale2x.ViewModels
                             }
                         }
 
-                        ////Layer 3
-                        //for (int x = 0; x < Stats.Layer3Size; x++)
-                        //{
-                        //    for (int y = 0; y < Stats.Layer3Size; y++)
-                        //        Layer3Weights_CPU[x, y, z] = CurrentBatch[z].Params.Layer3Weights[x, y];
-
-                        //    Layer3Biases_CPU[x, z] = CurrentBatch[z].Params.Layer3Biases[x];
-                        //    Layer3OutputBiases_CPU[x, z] = CurrentBatch[z].Params.Layer3OutputBiases[x];
-                        //}
-
                         //Output Layer
                         for (int x = 0; x < Stats.Outputs; x++)
                         {
@@ -896,9 +874,6 @@ namespace Upscale2x.ViewModels
                     using var Layer2Weights = GPU.AllocateReadOnlyTexture3D(Layer2Weights_CPU);
                     using var Layer2Biases = GPU.AllocateReadOnlyTexture2D(Layer2Biases_CPU);
                     using var Layer2OutputBiases = GPU.AllocateReadOnlyTexture2D(Layer2OutputBiases_CPU);
-                    //using var Layer3Weights = GPU.AllocateReadOnlyTexture3D(Layer3Weights_CPU);
-                    //using var Layer3Biases = GPU.AllocateReadOnlyTexture2D(Layer3Biases_CPU);
-                    //using var Layer3OutputBiases = GPU.AllocateReadOnlyTexture2D(Layer3OutputBiases_CPU);
                     using var OutputLayerWeights = GPU.AllocateReadOnlyTexture3D(OutputLayerWeights_CPU);
                     using var OutputLayerBiases = GPU.AllocateReadOnlyTexture2D(OutputLayerBiases_CPU);
 
@@ -920,9 +895,6 @@ namespace Upscale2x.ViewModels
                         Layer2Weights,
                         Layer2Biases,
                         Layer2OutputBiases,
-                        //Layer3Weights,
-                        //Layer3Biases,
-                        //Layer3OutputBiases,
                         OutputLayerWeights,
                         OutputLayerBiases
                         ));
@@ -1045,9 +1017,7 @@ namespace Upscale2x.ViewModels
 
             Parallel.ForEach(AllModels, x => x.Error = null);
 
-            Generations = 0;
-
-            //TestAccuracy_Batched();
+            OldError = null;
         }
     }
 

@@ -238,10 +238,14 @@ namespace Upscale2x.ViewModels
                 FarCornerWeight = 0.0625f;
 
             float4
-                Reference1 = Accelerated && !UseBaseModel ? Pixel7 * FarCornerWeight + Pixel8 * CloseCornerWeight + Pixel12 * CloseCornerWeight + ReferencePixel * CenterWeight : ReferencePixel,
-                Reference2 = Accelerated && !UseBaseModel ? Pixel8 * CloseCornerWeight + Pixel9 * FarCornerWeight + ReferencePixel * CenterWeight + Pixel14 * CloseCornerWeight : ReferencePixel,
-                Reference3 = Accelerated && !UseBaseModel ? Pixel12 * CloseCornerWeight + ReferencePixel * CenterWeight + Pixel17 * FarCornerWeight + Pixel18 * CloseCornerWeight : ReferencePixel,
-                Reference4 = Accelerated && !UseBaseModel ? ReferencePixel * CenterWeight + Pixel14 * CloseCornerWeight + Pixel18 * CloseCornerWeight + Pixel19 * FarCornerWeight : ReferencePixel,
+                Analyze1 = Accelerated ? Pixel7 * FarCornerWeight + Pixel8 * CloseCornerWeight + Pixel12 * CloseCornerWeight + ReferencePixel * CenterWeight : ReferencePixel,
+                Analyze2 = Accelerated ? Pixel8 * CloseCornerWeight + Pixel9 * FarCornerWeight + ReferencePixel * CenterWeight + Pixel14 * CloseCornerWeight : ReferencePixel,
+                Analyze3 = Accelerated ? Pixel12 * CloseCornerWeight + ReferencePixel * CenterWeight + Pixel17 * FarCornerWeight + Pixel18 * CloseCornerWeight : ReferencePixel,
+                Analyze4 = Accelerated ? ReferencePixel * CenterWeight + Pixel14 * CloseCornerWeight + Pixel18 * CloseCornerWeight + Pixel19 * FarCornerWeight : ReferencePixel,
+                Reference1 = Accelerated && !UseBaseModel ? Analyze1 : ReferencePixel,
+                Reference2 = Accelerated && !UseBaseModel ? Analyze2 : ReferencePixel,
+                Reference3 = Accelerated && !UseBaseModel ? Analyze3 : ReferencePixel,
+                Reference4 = Accelerated && !UseBaseModel ? Analyze4 : ReferencePixel,
                 Output1 = new float4(0,0,0,0),
                 Output2 = new float4(0,0,0,0),
                 Output3 = new float4(0,0,0,0),
@@ -278,7 +282,7 @@ namespace Upscale2x.ViewModels
                 InputPixels.Pixel18 = ((Pixel18 - ReferencePixel) - InputAverages[Z, 17 + offset]) / InputDeviations[Z, 17 + offset];
                 InputPixels.Pixel19 = ((Pixel19 - ReferencePixel) - InputAverages[Z, 18 + offset]) / InputDeviations[Z, 18 + offset];
                 InputPixels.Pixel20 = ((Pixel20 - ReferencePixel) - InputAverages[Z, 19 + offset]) / InputDeviations[Z, 19 + offset];
-                InputPixels.Pixel21 = ((Pixel21 - ReferencePixel) - ReferencePixel - InputAverages[Z, 20 + offset]) / InputDeviations[Z, 20 + offset];
+                InputPixels.Pixel21 = ((Pixel21 - ReferencePixel) - InputAverages[Z, 20 + offset]) / InputDeviations[Z, 20 + offset];
                 InputPixels.Pixel22 = ((Pixel22 - ReferencePixel) - InputAverages[Z, 21 + offset]) / InputDeviations[Z, 21 + offset];
                 InputPixels.Pixel23 = ((Pixel23 - ReferencePixel) - InputAverages[Z, 22 + offset]) / InputDeviations[Z, 22 + offset];
                 InputPixels.Pixel24 = ((Pixel24 - ReferencePixel) - InputAverages[Z, 23 + offset]) / InputDeviations[Z, 23 + offset];
@@ -303,6 +307,9 @@ namespace Upscale2x.ViewModels
                 Layer1.Neuron16 = GetLayer1Output(15, InputPixels, Z, i);
                 Layer1.Neuron17 = GetLayer1Output(16, InputPixels, Z, i);
                 Layer1.Neuron18 = GetLayer1Output(17, InputPixels, Z, i);
+                Layer1.Neuron19 = GetLayer1Output(18, InputPixels, Z, i);
+                Layer1.Neuron20 = GetLayer1Output(19, InputPixels, Z, i);
+                Layer1.Neuron21 = GetLayer1Output(20, InputPixels, Z, i);
 
 
                 //Calculate Layer 2 outputs
@@ -315,6 +322,7 @@ namespace Upscale2x.ViewModels
                 Layer2.Neuron7 = GetLayer2Output(6, Layer1, Z, i);
                 Layer2.Neuron8 = GetLayer2Output(7, Layer1, Z, i);
                 Layer2.Neuron9 = GetLayer2Output(8, Layer1, Z, i);
+                Layer2.Neuron10 = GetLayer2Output(9, Layer1, Z, i);
 
                 //Calculate final outputs
                 Output1 = GetOutputPixel(0, Layer2, Z, i);
@@ -324,10 +332,10 @@ namespace Upscale2x.ViewModels
 
                 if (UseBaseModel && i == 0)
                 {
-                    Reference1 = Output1;
-                    Reference2 = Output2;
-                    Reference3 = Output3;
-                    Reference4 = Output4;
+                    Reference1 += Output1;
+                    Reference2 += Output2;
+                    Reference3 += Output3;
+                    Reference4 += Output4;
                 }
             }
 
@@ -411,10 +419,10 @@ namespace Upscale2x.ViewModels
             {
                 if (Analyze)
                 {
-                    Output1 = Output1 - Reference1 + 0.5f;                    
-                    Output2 = Output2 - Reference2 + 0.5f;
-                    Output3 = Output3 - Reference3 + 0.5f;
-                    Output4 = Output4 - Reference4 + 0.5f;
+                    Output1 = Output1 - Analyze1 + 0.5f;                    
+                    Output2 = Output2 - Analyze2 + 0.5f;
+                    Output3 = Output3 - Analyze3 + 0.5f;
+                    Output4 = Output4 - Analyze4 + 0.5f;
 
                     Output1 += (Output1.A - 0.5f);
                     Output1.A = 1;
@@ -485,7 +493,7 @@ namespace Upscale2x.ViewModels
         float4 GetLayer2Output(int Neuron, Layer1Data Layer1, int Z, int Model)
         {
             if (UseBaseModel && Model == 0)
-                Neuron += 9;
+                Neuron += 10;
 
             float4 value = default;
             value += Layer2Weights[Z, 0, Neuron] * Layer1.Neuron1;
@@ -506,6 +514,9 @@ namespace Upscale2x.ViewModels
             value += Layer2Weights[Z, 15, Neuron] * Layer1.Neuron16;
             value += Layer2Weights[Z, 16, Neuron] * Layer1.Neuron17;
             value += Layer2Weights[Z, 17, Neuron] * Layer1.Neuron18;
+            value += Layer2Weights[Z, 18, Neuron] * Layer1.Neuron19;
+            value += Layer2Weights[Z, 19, Neuron] * Layer1.Neuron20;
+            value += Layer2Weights[Z, 20, Neuron] * Layer1.Neuron21;
 
             value += Layer2Biases[Z, Neuron];
             value = Hlsl.Tanh(value);
@@ -545,6 +556,13 @@ namespace Upscale2x.ViewModels
             value += OutputLayerWeights[Z, 0, Neuron] * Layer2.Neuron1;
             value += OutputLayerWeights[Z, 1, Neuron] * Layer2.Neuron2;
             value += OutputLayerWeights[Z, 2, Neuron] * Layer2.Neuron3;
+            value += OutputLayerWeights[Z, 3, Neuron] * Layer2.Neuron4;
+            value += OutputLayerWeights[Z, 4, Neuron] * Layer2.Neuron5;
+            value += OutputLayerWeights[Z, 5, Neuron] * Layer2.Neuron6;
+            value += OutputLayerWeights[Z, 6, Neuron] * Layer2.Neuron7;
+            value += OutputLayerWeights[Z, 7, Neuron] * Layer2.Neuron8;
+            value += OutputLayerWeights[Z, 8, Neuron] * Layer2.Neuron9;
+            value += OutputLayerWeights[Z, 9, Neuron] * Layer2.Neuron10;
 
             value += OutputLayerBiases[Z, Neuron];
 

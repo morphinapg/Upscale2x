@@ -52,6 +52,7 @@ namespace Upscale2x.ViewModels
                 OnPropertyChanged(nameof(BaseModelEnabled));
                 OnPropertyChanged(nameof(BaseImprovement));
                 OnPropertyChanged(nameof(TotalImprovement));
+                OnPropertyChanged(nameof(TotalVisible));
             }
         }
 
@@ -66,6 +67,7 @@ namespace Upscale2x.ViewModels
                 OnPropertyChanged(nameof(RefineModelEnabled));
                 OnPropertyChanged(nameof(RefineImprovement));
                 OnPropertyChanged(nameof(TotalImprovement));
+                OnPropertyChanged(nameof(TotalVisible));
             }
         }
 
@@ -138,6 +140,8 @@ namespace Upscale2x.ViewModels
             }
         }
 
+        public bool TotalVisible => TotalImprovement is not null;
+
         public bool BaseModelEnabled => BaseModel is not null;
         public bool RefineModelEnabled => RefineModel is not null;
 
@@ -207,14 +211,6 @@ namespace Upscale2x.ViewModels
 
                 if (value)
                 {
-                    if (RefineModel is null)
-                    {
-                        RefineModel = new Evolution(true);
-
-                        OnPropertyChanged(nameof(RefineImprovement));
-                    }
-                        
-
                     if (BaseModel is not null)
                     {
                         //We need to check whether the base model has been trained and beats the base error
@@ -223,8 +219,25 @@ namespace Upscale2x.ViewModels
 
                         if (BaseModel.Error is null || BaseModel.Error >= BaseError)
                         {
-                            BaseModel = null;                            
+                            BaseModel = null;   
+                            OnPropertyChanged(nameof(BaseModelEnabled));
+                            OnPropertyChanged(nameof(BaseImprovement));
+                            OnPropertyChanged(nameof(TotalImprovement));
                         }
+                    }
+
+                    if (RefineModel is null)
+                    {
+                        RefineModel = new Evolution(true);
+
+                        Task.Run(() =>
+                        {
+                            RefineModel.NextGeneration(InputImage, DownscaledImage, true, BaseModel?.TopModel);
+
+                            OnPropertyChanged(nameof(RefineModelEnabled));
+                            OnPropertyChanged(nameof(RefineImprovement));
+                            OnPropertyChanged(nameof(TotalImprovement));
+                        });
                     }
                 }
                 else
@@ -232,7 +245,16 @@ namespace Upscale2x.ViewModels
                     if (BaseModel is null)
                     {
                         BaseModel = new Evolution(false);
-                        OnPropertyChanged(nameof(BaseImprovement));
+
+                        Task.Run(() =>
+                        {
+                            BaseModel.NextGeneration(InputImage, DownscaledImage, false);
+
+                            OnPropertyChanged(nameof(BaseModelEnabled));
+                            OnPropertyChanged(nameof(BaseImprovement));
+                            OnPropertyChanged(nameof(RefineImprovement));
+                            OnPropertyChanged(nameof(TotalImprovement));
+                        });
                     }
 
                     if (RefineModel is not null)
@@ -243,6 +265,9 @@ namespace Upscale2x.ViewModels
                         if (RefineModel.Error is null || (RefineModel.Error >= BaseModel.Error))
                         {
                             RefineModel = null;
+                            OnPropertyChanged(nameof(RefineModelEnabled));
+                            OnPropertyChanged(nameof(RefineImprovement));
+                            OnPropertyChanged(nameof(TotalImprovement));
                         }
                     }
                 }
@@ -375,8 +400,6 @@ namespace Upscale2x.ViewModels
 
         public bool ReadyToTrain => ModelEnabled && DownscaledImage is not null && InputImage is not null;
 
-        //public float? Average, Deviation;
-
         async Task PrepareImage(string path)
         {
             await Task.Run(() =>
@@ -391,30 +414,49 @@ namespace Upscale2x.ViewModels
                     DownscaledImage.Dispose();
                 DownscaledImage = GPU.AllocateReadWriteTexture2D<Rgba64, float4>(InputImage.Width / 2, InputImage.Height / 2);
 
-                GPU.ForEach(DownscaledImage, new GPUDownscale(InputImage));
-
-                //We need to calculate BaseError, which will be used as reference for the total model improvement
-                //For this we will create a temporary Evolution instance and calculate the error without any training, as this will be the error of a bilinear upscale which is our baseline for improvement
-                 var TempEvolution = new Evolution(false);
-                // TempEvolution.TestAccuracy(InputImage, DownscaledImage, false);
-                //TempEvolution.UpdateTopModel(0);
-
-                BaseError = TempEvolution.InitializeError(InputImage, DownscaledImage, false);
+                GPU.ForEach(DownscaledImage, new GPUDownscale(InputImage));       
 
                 if (BaseMode && BaseModel is null)
                     BaseModel = new Evolution(false);
                 
                 if (RefineMode && RefineModel is null)
-                    RefineModel = new Evolution(true);
+                    RefineModel = new Evolution(true);                
 
-                if (BaseModel is not null)
-                    BaseModel.ResetErrors();
-
-                if (RefineModel is not null)
-                    RefineModel.ResetErrors();
-
+                OnPropertyChanged(nameof(BaseModelEnabled));
+                OnPropertyChanged(nameof(RefineModelEnabled));
                 OnPropertyChanged(nameof(ModelEnabled));
                 OnPropertyChanged(nameof(ReadyToTrain));
+
+                RefreshModelErrors();
+            });            
+        }
+
+        void RefreshModelErrors()
+        {
+            Task.Run(() =>
+            {
+                //We need to calculate BaseError, which will be used as reference for the total model improvement
+                //For this we will create a temporary Evolution instance and calculate the error without any training, as this will be the error of a bilinear upscale which is our baseline for improvement
+                var TempEvolution = new Evolution(false);
+                BaseError = TempEvolution.InitializeError(InputImage, DownscaledImage, false);
+
+                //Now we need to update the errors of the current models, as they might be based on a different image or have been trained in refine mode with a different base model, so their errors are not comparable to the current base error
+                if (BaseModel is not null)
+                {
+                    BaseModel.ResetErrors();
+                    BaseModel.NextGeneration(InputImage, DownscaledImage, false);
+                }
+                if (RefineModel is not null)
+                {
+                    RefineModel.ResetErrors();
+                    RefineModel.NextGeneration(InputImage, DownscaledImage, true, BaseModel?.TopModel);
+                }
+
+                //After refreshing the errors, we need to notify the UI to update the improvement values
+                OnPropertyChanged(nameof(BaseImprovement));
+                OnPropertyChanged(nameof(RefineImprovement));
+                OnPropertyChanged(nameof(TotalImprovement));
+                OnPropertyChanged(nameof(TotalVisible));
             });            
         }
 
@@ -451,6 +493,7 @@ namespace Upscale2x.ViewModels
 
                 OnPropertyChanged(nameof(RefineImprovement));
                 OnPropertyChanged(nameof(TotalImprovement));
+                OnPropertyChanged(nameof(TotalVisible));
             }
             else
             {
@@ -463,6 +506,7 @@ namespace Upscale2x.ViewModels
                 OnPropertyChanged(nameof(RefineModelEnabled));
                 OnPropertyChanged(nameof(RefineImprovement));
                 OnPropertyChanged(nameof(TotalImprovement));
+                OnPropertyChanged(nameof(TotalVisible));
                 OnPropertyChanged(nameof(BaseImprovement));
             }
         }
@@ -493,6 +537,7 @@ namespace Upscale2x.ViewModels
 
                     OnPropertyChanged(nameof(RefineImprovement));
                     OnPropertyChanged(nameof(TotalImprovement));
+                    OnPropertyChanged(nameof(TotalVisible));
                 }
                 else
                 {
@@ -514,6 +559,7 @@ namespace Upscale2x.ViewModels
                             OnPropertyChanged(nameof(BaseImprovement));
                             OnPropertyChanged(nameof(RefineImprovement));
                             OnPropertyChanged(nameof(TotalImprovement));
+                            OnPropertyChanged(nameof(TotalVisible));
                         }
                     });
                 }
@@ -555,7 +601,9 @@ namespace Upscale2x.ViewModels
             var Model = RefineMode ? RefineModel : this.BaseModel;
             if (Model is not null)
             {
-                var outputs = await Model.Upscale(InputImage, RefineMode, AnalyzeRender);
+                var basemodel = RefineMode ? BaseModel?.TopModel : null;
+
+                var outputs = await Model.Upscale(InputImage, RefineMode, AnalyzeRender, basemodel);
 
                 if (outputs is not null)
                 {
@@ -765,22 +813,23 @@ namespace Upscale2x.ViewModels
                     {
                         ModelPath = Path.GetDirectoryName(path);
 
-                        try
-                        {
-                            var model = await ReadObjectAsync<ModelBundle>(path);
+                        var model = await ReadObjectAsync<ModelBundle>(path);
 
+                        if (model is not null)
+                        {
                             BaseModel = model.BaseModel;
                             RefineModel = model.RefineModel;
                             RefineMode = model.RefineMode;
 
                             //if (InputImage is not null && DownscaledImage is not null)
                             //    UpdateImages(InputImage, DownscaledImage);
-
-                            OnPropertyChanged(nameof(ModelEnabled));
-                            OnPropertyChanged(nameof(ReadyToTrain));
-                            OnPropertyChanged(nameof(RefineMode));
                         }
-                        catch (Exception) { }
+
+                        OnPropertyChanged(nameof(ModelEnabled));
+                        OnPropertyChanged(nameof(ReadyToTrain));
+                        OnPropertyChanged(nameof(RefineMode));
+
+                        RefreshModelErrors();
                     }
                 }
             }
@@ -799,6 +848,7 @@ namespace Upscale2x.ViewModels
 
                 OnPropertyChanged(nameof(RefineImprovement));
                 OnPropertyChanged(nameof(TotalImprovement));
+                OnPropertyChanged(nameof(TotalVisible));
             }
             else
             {
@@ -810,6 +860,7 @@ namespace Upscale2x.ViewModels
                 OnPropertyChanged(nameof(RefineModelEnabled));
                 OnPropertyChanged(nameof(RefineImprovement));
                 OnPropertyChanged(nameof(TotalImprovement));
+                OnPropertyChanged(nameof(TotalVisible));
                 OnPropertyChanged(nameof(BaseImprovement));
             }
         }
@@ -828,6 +879,7 @@ namespace Upscale2x.ViewModels
                 OnPropertyChanged(nameof(RefineModelEnabled));
                 OnPropertyChanged(nameof(RefineImprovement));
                 OnPropertyChanged(nameof(TotalImprovement));
+                OnPropertyChanged(nameof(TotalVisible));
             }
             else
             {
@@ -835,6 +887,7 @@ namespace Upscale2x.ViewModels
                 OnPropertyChanged(nameof(RefineModelEnabled));
                 OnPropertyChanged(nameof(RefineImprovement));
                 OnPropertyChanged(nameof(TotalImprovement));
+                OnPropertyChanged(nameof(TotalVisible));
             }
         }
     }
