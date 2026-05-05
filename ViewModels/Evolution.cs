@@ -89,12 +89,6 @@ namespace Upscale2x.ViewModels
 
                 var Time = DateTime.Now - LastUpdate.Value;
 
-                if (Time.TotalSeconds > 60 && TopModelLocked == false)
-                {
-                    TopModelLocked = true;
-                    OnPropertyChanged(nameof(Checkmark));
-                }
-
 
                 if (Time.TotalSeconds < 2)
                     return "(Updated 1 second ago)";
@@ -114,16 +108,6 @@ namespace Upscale2x.ViewModels
                     return "(Updated " + Time.Days + " days ago)";
             }
         }
-
-        /// <summary>
-        /// This represents whether a model has remained consistent for at least 60 seconds at any time during training, suggesting that the model is settling on a possible optimal state
-        /// </summary>
-        public bool? TopModelLocked = null;
-
-        /// <summary>
-        /// Displays a checkmark next to the network name on HomePage if TopModelLocked is ever set to true
-        /// </summary>
-        public string? Checkmark => TopModelLocked == true && OldError is not null ? "✔️" : null;
 
         /// <summary>
         /// Forces the UI to refresh the Last Update Text
@@ -191,9 +175,6 @@ namespace Upscale2x.ViewModels
                 {
                     TopModelChanged = true;
                     LastUpdate = DateTime.Now;
-
-                    if (TopModelLocked is null)
-                        TopModelLocked = false;
                 }
 
                 //check if second child beats new second place as well
@@ -201,7 +182,7 @@ namespace Upscale2x.ViewModels
                     TopModels[i][1] = FamilyTrees[i][1];
             }
             else if (FamilyTrees[i][0] > TopModels[i][1])
-                TopModels[i][1] = FamilyTrees[i][1];
+                TopModels[i][1] = FamilyTrees[i][0];
         }
 
         const int NumberOfParents = 32;
@@ -719,7 +700,7 @@ namespace Upscale2x.ViewModels
 
                 var AvailableVRAM = (VRAM - used) * 0.9f; //leave 10% overhead to be safe
 
-                var ModelCount = NumberOfModels * NumberOfTrees;
+                var ModelCount = AllModels.Count;
 
                 //The number of minimum bytes needed per training session
                 var BaseBytes =
