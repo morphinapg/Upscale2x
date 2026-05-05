@@ -164,6 +164,8 @@ namespace Upscale2x.ViewModels
             mutationrate = other.mutationrate;
             mutationintensity = other.mutationintensity;
                 TrendConfidence = other.TrendConfidence;
+
+            Error = other.Error;
         }
 
         /// <summary>
@@ -232,6 +234,7 @@ namespace Upscale2x.ViewModels
             if (r.NextSingle() < mutationrate)
             {
                 IsMutated = true;
+                Error = null;
 
                 if (f == mutationrate || f == TrendConfidence)
                 {
@@ -280,7 +283,10 @@ namespace Upscale2x.ViewModels
             }
 
             if (Neurons.Where(x => x.IsMutated).Any())
+            {
                 IsMutated = true;
+                Error = null;
+            }                
         }
 
         /// <summary>

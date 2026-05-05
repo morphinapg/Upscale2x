@@ -185,7 +185,7 @@ namespace Upscale2x.ViewModels
                 TopModels[i][1] = FamilyTrees[i][0];
         }
 
-        const int NumberOfParents = 32;
+        const int NumberOfParents = 4;
 
         /// <summary>
         /// Retrieve a selection of 4 parent candidates for breeding
@@ -671,7 +671,7 @@ namespace Upscale2x.ViewModels
         void TestAccuracy(ReadWriteTexture2D<Rgba64, float4>? InputImage, ReadWriteTexture2D<Rgba64, float4>? DownscaledImage, bool RefineMode, NeuralNetwork? BaseModel = null, bool Initialize = false)
         {
             var Tops = TopModels.SelectMany(x => x);
-            var AllModels = FamilyTrees.SelectMany(x => x).Concat(Tops).Where(x => x is not null).ToList();
+            var AllModels = FamilyTrees.SelectMany(x => x).Concat(Tops).Where(x => x is not null && x.Error is null).ToList();
 
             if (Initialize) 
                 AllModels = AllModels.Take(1).ToList();
